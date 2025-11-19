@@ -17,6 +17,7 @@
 All rights revserved 2019-2023 (c) Shogo MURAMATSU
 """
 import numpy as np
+import time
 
 def clamped(v):
     """ 値の制限 [-1,1] """
@@ -33,44 +34,60 @@ class LFController:
     
     def __init__(self,prs = None):
         self._prs = prs
+        # 制御パラメータ
+        self.base_speed = 0.2  # 基本速度（ゆっくり確実に）
+        # PIDゲイン
+        self.Kp = 0.5   # P (比例)
+        self.Ki = 0.01  # I (積分) - 累積しすぎないように小さめに
+        self.Kd = 0.1   # D (微分)
+        # PID制御用の変数
+        self.last_error = 0.0   # 前回の誤差
+        self.integral = 0.0     # 誤差の累積
+        self.last_time = time.time()
 
     def prs2mtrs(self):
-        """ フォトリフレクタからモータ制御信号への変換メソッド
-        
-            4つフォトリフレクタの応答を2つのモーター制御信号に
-            変換する制御の最も重要な部分を実装しています。
+        """ フォトリフレクタからモータ制御信号への変換メソッド """
 
-            このメソッドに実装するアルゴリズムは、
-            細かい調整を除いて実機でも利用できるはずです。
+        # 時間差を計算
+        current_time = time.time()
+        dt = current_time - self.last_time
+        if dt <= 0: dt = 1e-3 # ゼロ除算防止
+        self.last_time = current_time
 
-            実機での調整を減らすためには物理モデルの洗練化も必要です。
-            工夫の余地が多く残されています。各自で改善してください。
+        # フォトリフレクタの値を読み出し
+        # 白を検出すると 0，黒を検出すると 1 (シミュレータの仕様によるが、通常は黒が高い値)
+        # ユーザーコードではそのまま使っている
+        s = np.array([ self._prs[idx].value for idx in range(len(self._prs)) ])
 
-            作成するライントレーサーは2輪車両であり非線形なシステムです。
-            PID制御のような通常のフィードバック制御で安定して制御することは難しく，
-            安定な制御のためには状態方程式から考察される時変の状態フィードバックや
-            不連続フィードバックなどが必要です。
-            現代制御（カルマンフィルタ，パーティクルフィルタ）や
-            強化学習（人工知能）など高度な技術などこの部分に実装することになります。
-        
-        """
+        # ラインからのズレを計算（重み付け平均）
+        # センサー配置: [左外, 左中, 右中, 右外] (インデックス 0, 1, 2, 3)
+        # 左にずれたらマイナス、右にずれたらプラスになるように重み付け
+        weights = np.array([-2.0, -1.0, 1.0, 2.0])
+        error = np.dot(s, weights)
 
-        # フォトリフレクタの値を読み出しとベクトル化(vec_x)
-        # 白を検出すると 0，黒を検出すると 1
-        vec_prs = np.array([ self._prs[idx].value \
-            for idx in range(len(self._prs)) ])
+        # PID制御の計算
+        # P (比例)
+        p_term = self.Kp * error
 
-        # モーター制御の強度値を計算（ここを工夫）
-        # Left <- 0 1 2 3 -> Right        
-        mat_A = np.array([
-            [-1.0,-0.2,0.2,1.0],
-            [1.0,0.2,-0.2,-1.0]
-            ])
-        vec_mtrs = np.dot(mat_A,vec_prs)+1.0
-        
-        # 出力範囲を[-1,1]に直して出力
-        mtr_left, mtr_right = vec_mtrs[0], vec_mtrs[1]
-        return (clamped(mtr_left),clamped(mtr_right))
+        # I (積分)
+        self.integral += error * dt
+        self.integral = max(-5.0, min(5.0, self.integral))  # ワインドアップ防止
+        i_term = self.Ki * self.integral
+
+        # D (微分)
+        d_term = self.Kd * (error - self.last_error) / dt
+        self.last_error = error
+
+        # PID補正値の合計
+        correction = p_term + i_term + d_term
+
+        # 左右モーターの速度を決定
+        # correction > 0 (右寄り) -> 左モーター増速、右モーター減速 -> 右旋回
+        # correction < 0 (左寄り) -> 左モーター減速、右モーター増速 -> 左旋回
+        left = self.base_speed + correction
+        right = self.base_speed - correction
+
+        return (clamped(left), clamped(right))
 
     @property
     def photorefs(self):
