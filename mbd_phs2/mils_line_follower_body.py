@@ -43,7 +43,7 @@ import pygame
 #
 # ((dx1,dy1), (dx2,dy2), (dx3,dy3), (dx4,dy4)) 
 #
-LF_MOUNT_POS_PRF = ((120,-60), (100,-20), (100,20), (120,60)) # mm
+LF_MOUNT_POS_PRF = ((30,-60), (10,-20), (10,20), (30,60)) # mm
 LF_WEIGHT = 360    # 車体の重さ g（グラム）
 SHAFT_LENGTH = 50  # シャフト長 mm （１本あたり）
 TIRE_DIAMETER = 58 # タイヤ直径 mm
@@ -54,7 +54,7 @@ COEF_K_P = 3.0 # 比例制御係数
 # 物理モデルパラメータ（要調整）
 PARAMS_MU_C = 1e-3 # kg/s 車体の直線運動の粘性摩擦係数（便宜上）
 PARAMS_IOTA_C = 1e-4 # kg·m^2/s 車体の旋廻運動の粘性摩擦係数（便宜上）
-PARAMS_ELL_C = 30e-3 # m 車体の重心から車輪間の中心までの距離 
+PARAMS_ELL_C = -30e-3 # m 車体の重心から車輪間の中心までの距離 
 PARAMS_N = 58.2 # ギヤ比
 PARAMS_L_C = 2*SHAFT_LENGTH*1e-3 # m 車輪間の距離
 PARAMS_R_W = (1/2)*TIRE_DIAMETER*1e-3 # m 車輪の半径　
@@ -333,7 +333,7 @@ class LFPhysicalModel:
         pos_cy_mm = self._y_mm # pixel
         car_width_mm = 2*SHAFT_LENGTH # 車体幅 in mm
         car_length_mm = car_width_mm+60 # 車体長 in mm
-        pos_topleft_x_px = int((pos_cx_mm-0.7*SHAFT_LENGTH)/res+.5)
+        pos_topleft_x_px = int((pos_cx_mm-2.5*SHAFT_LENGTH)/res+.5)
         pos_topleft_y_px = int((pos_cy_mm-0.7*SHAFT_LENGTH)/res+.5)
         car_width_px = (car_width_mm-0.6*SHAFT_LENGTH)/res # 車体幅 in pixel  
         car_length_px = (car_length_mm-0.6*SHAFT_LENGTH)/res # 車体長 in pixel    
