@@ -45,7 +45,7 @@ import pygame
 #
 # ((dx1,dy1), (dx2,dy2), (dx3,dy3), (dx4,dy4)) 
 #
-LF_MOUNT_POS_PRF = ((30,-60), (10,-20), (10,20), (30,60)) # mm
+LF_MOUNT_POS_PRF = ((40,-45), (25,-20), (25,20), (40,45)) # mm
 LF_WEIGHT = 360    # 車体の重さ g（グラム）
 SHAFT_LENGTH = 50  # シャフト長 mm （１本）
 TIRE_DIAMETER = 58 # タイヤ直径 mm

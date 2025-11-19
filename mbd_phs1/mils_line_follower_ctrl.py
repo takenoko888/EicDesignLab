@@ -20,8 +20,8 @@ import numpy as np
 import time
 
 def clamped(v):
-    """ 値の制限 [-1,1] """
-    return max(-1,min(1,v))
+    """ 値の制限 [0.6,1] """
+    return max(0,min(0.6,v))
 
 class LFController:
     """ ライントレース制御クラス 
@@ -35,11 +35,11 @@ class LFController:
     def __init__(self,prs = None):
         self._prs = prs
         # 制御パラメータ
-        self.base_speed = 0.2  # 基本速度（ゆっくり確実に）
+        self.base_speed = 0.05  # 基本速度（大きくすると速くなるが、カーブで脱線しやすくなる）
         # PIDゲイン
-        self.Kp = 0.5   # P (比例)
-        self.Ki = 0.01  # I (積分) - 累積しすぎないように小さめに
-        self.Kd = 0.1   # D (微分)
+        self.Kp = 0.8   # P (比例): 現在のズレに対する反応の強さ。大きくすると急カーブに強くなるが、ふらつきやすくなる。
+        self.Ki = 0.01  # I (積分): 過去のズレの蓄積。小さなズレが続く場合に効く。大きくしすぎると暴走の原因になる。
+        self.Kd = 0.5   # D (微分): ズレの変化スピードに対する反応。ふらつき（振動）を抑えるブレーキの役割。
         # PID制御用の変数
         self.last_error = 0.0   # 前回の誤差
         self.integral = 0.0     # 誤差の累積
@@ -56,13 +56,14 @@ class LFController:
 
         # フォトリフレクタの値を読み出し
         # 白を検出すると 0，黒を検出すると 1 (シミュレータの仕様によるが、通常は黒が高い値)
-        # ユーザーコードではそのまま使っている
         s = np.array([ self._prs[idx].value for idx in range(len(self._prs)) ])
 
         # ラインからのズレを計算（重み付け平均）
         # センサー配置: [左外, 左中, 右中, 右外] (インデックス 0, 1, 2, 3)
         # 左にずれたらマイナス、右にずれたらプラスになるように重み付け
-        weights = np.array([-2.0, -1.0, 1.0, 2.0])
+        # 外側の値(絶対値)を大きくすると急カーブに反応しやすくなる
+        # 内側の値(絶対値)を大きくすると直進性が増し、交差点で迷いにくくなる
+        weights = np.array([-2.5, -1.5, 1.5, 2.6])
         error = np.dot(s, weights)
 
         # PID制御の計算
