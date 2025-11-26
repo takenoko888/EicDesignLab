@@ -17,13 +17,13 @@ from signal import pause
 import threading
 
 # ========== ピン設定 ==========
-PIN_BUTTON = 3      # スタート/ストップボタン
-PIN_LED = 17        # 状態表示LED（オプション）
-PIN_AIN1 = 6        # モーター左 前進
-PIN_AIN2 = 5        # モーター左 後退
-PIN_BIN1 = 26       # モーター右 前進
-PIN_BIN2 = 27       # モーター右 後退
-NUM_CH = 4          # フォトリフレクタ数
+PIN_BUTTON = 3      # スタート/ストップボタン（GPIO3）
+PIN_LED = 23        # 状態表示LED（GPIO23）※オプション
+PIN_AIN1 = 6        # モーター左 前進（GPIO6）
+PIN_AIN2 = 5        # モーター左 後退（GPIO5）
+PIN_BIN1 = 26       # モーター右 前進（GPIO26）
+PIN_BIN2 = 27       # モーター右 後退（GPIO27）
+NUM_CH = 4          # フォトリフレクタ数（MCP3004: ch0-3）
 
 def clamped(v):
     """ 値の制限 [-1,1] """
@@ -70,30 +70,50 @@ class LFController:
         if not self._running:
             return (0, 0)  # 停止
 
+        # 時間差を計算（PID制御の精度向上のため）
         current_time = time.time()
         dt = current_time - self.last_time
         if dt <= 0:
-            dt = 1e-3
+            dt = 1e-3  # ゼロ除算防止
         self.last_time = current_time
 
+        # フォトリフレクタの値を読み出し
+        # 白を検出すると 0，黒を検出すると 1
         s = np.array([self._prs[idx].value for idx in range(len(self._prs))])
 
-        # 交差点対策
+        # ラインからのズレを計算（重み付け平均）
+        # センサー配置: [左外, 左中, 右中, 右外]
+        weights = np.array([-3.2, -1.2, 1.2, 3.2])
+
+        # 交差点対策: 中央の2つのセンサーが両方とも反応している場合
+        # ラインの真上にいると判断し、交差ラインの影響を受けないよう「強制的に直進」させる
         if s[1] > 0.4 and s[2] > 0.4:
             error = 0.0
         else:
+            # 通常時は全センサーを使用
+            # 外側のセンサーの重みを調整
             weights = np.array([-0, -1.2, 1.2, 0])
             error = np.dot(s, weights)
 
-        # PID制御
+        # PID制御の計算
+        # P (比例)
         p_term = self.Kp * error
+
+        # I (積分)
         self.integral += error * dt
         self.integral = max(-5.0, min(5.0, self.integral))
         i_term = self.Ki * self.integral
+
+        # D (微分)
         d_term = self.Kd * (error - self.last_error) / dt
         self.last_error = error
 
+        # PID補正値の合計
         correction = p_term + i_term + d_term
+
+        # 左右モーターの速度を決定
+        # correction > 0 (右寄り) -> 左モーター増速、右モーター減速 -> 右旋回
+        # correction < 0 (左寄り) -> 左モーター減速、右モーター増速 -> 左旋回
         left = self.base_speed + correction
         right = self.base_speed - correction
 
