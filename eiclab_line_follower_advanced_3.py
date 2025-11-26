@@ -138,7 +138,7 @@ def main():
     global motors
     
     # 接続ピン
-    PIN_BT = 25 #GPIO3に変更する必要がある？
+    PIN_BT = 3 # GPIO25かもしれない
     
     # モーター設定
     motor_left = Motor(forward=6, backward=5, pwm=True)
