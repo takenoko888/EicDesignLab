@@ -1,0 +1,12 @@
+[Unit]
+Description=Line Follower Daemon
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/sbin/eiclab_linefollower_button.py
+Type=simple
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
