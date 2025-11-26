@@ -80,7 +80,7 @@ class LFController:
 
         # I (積分)
         self.integral += error * dt
-        self.integral = max(-5.0, min(5.0, self.integral))  # ワインドアップ防止
+        self.integral = max(-5.0, min(5.0, self.integral)) 
         i_term = self.Ki * self.integral
 
         # D (微分)
