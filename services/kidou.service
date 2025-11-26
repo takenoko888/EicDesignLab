@@ -1,0 +1,13 @@
+[Unit]
+Description=Line Follower with Button Control Daemon
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/pi/EicDesignLab/eiclab_line_follower_advanced_3.py
+WorkingDirectory=/home/pi/EicDesignLab
+Restart=on-failure
+User=root
+Type=simple
+
+[Install]
+WantedBy=multi-user.target

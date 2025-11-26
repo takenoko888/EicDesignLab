@@ -12,12 +12,20 @@
   - P (比例): ズレた分だけ戻す基本制御
   - I (積分): モーター個体差による定常偏差を補正
   - D (微分): P制御の行き過ぎを抑る
+
+参考サイト
+	https://gpiozero.readthedocs.io/en/stable/index.html
 """
 
 import numpy as np
 import time
-from gpiozero import MCP3004, Robot, Motor
+from gpiozero import MCP3004, Robot, Motor, Button
+from subprocess import check_call
 from signal import pause
+
+# 状態管理
+running = False
+motors = None
 
 def clamped(v):
     """ 値の制限 [-1,1] """
@@ -105,37 +113,54 @@ class LFController:
 
     def line_follow(self):
         """制御値を生成し続ける"""
+        global running
         while True:
+            if running:
                 yield self.prs2mtrs()
+            else:
+                yield (0, 0)
+
+def toggle():
+    """ 開始停止切替関数 """
+    global running, motors
+    running = not running
+    if not running and motors:
+        motors.stop()
+
+def shutdown():
+    """ シャットダウン関数 """
+    if motors:
+        motors.stop()
+    check_call(['sudo', 'poweroff'])
 
 def main():
-    """メイン関数"""
-    # モータードライバ接続ピン（DRV8835）
-    PIN_AIN1 = 6
-    PIN_AIN2 = 5
-    PIN_BIN1 = 26
-    PIN_BIN2 = 27
-    NUM_CH = 4
-
-    # キモ② DRV8835 (IN/INモード): pwm=Trueでブレーキ機能が有効
-    # カーブで内側のタイヤが空転せず、ブレーキがかかってキレのある旋回
+    """ メイン関数 """
+    global motors
     
-    # 1. DRV8835 (IN/INモード) に合わせて、個別のMotorオブジェクトを作成
-    #    (forward, backward) のペアでピンを指定し、pwm=True に設定
-    motor_left = Motor(forward=PIN_AIN1, backward=PIN_AIN2, pwm=True)
-    motor_right = Motor(forward=PIN_BIN1, backward=PIN_BIN2, pwm=True)
-
-    # 2. 作成したMotorオブジェクトをRobotクラスに渡す
-    # これで、キモであるブレーキ機能が有効
+    # 接続ピン
+    PIN_BT = 25 #GPIO3に変更する必要がある？
+    
+    # モーター設定
+    motor_left = Motor(forward=6, backward=5, pwm=True)
+    motor_right = Motor(forward=26, backward=27, pwm=True)
     motors = Robot(left=motor_left, right=motor_right)
+    
+    # フォトリフレクタ設定
+    photorefs = [MCP3004(channel=i) for i in range(4)]
+    
+    # ボタン長押し時間設定
+    button = Button(PIN_BT, hold_time=2)
+    # ボタン押下時のコールバック設定
+    button.when_pressed = toggle
+    # ボタン長押し時のコールバック設定
+    button.when_held = shutdown
 
-    # キモ① MCP3004: SPI通信でアナログ値取得
-    photorefs = [MCP3004(channel=i) for i in range(NUM_CH)]
-
-    # 本命！ PID制御でライントレース開始
+    # ライントレース開始
     lf = LFController(photorefs)
     motors.source = lf.line_follow()
-    pause()  # Ctrl+Cで停止
+    
+    # 停止(Ctrl+c)まで待機
+    pause()
 
 if __name__ == '__main__':
     main()
